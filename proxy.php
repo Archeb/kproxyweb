@@ -146,7 +146,7 @@ function proxifyCSS($css, $baseURL) {
         if (strpos($url, "\"") === 0) {
           $url = trim($url, "\"");
         }
-        if (stripos($url, "data:") === 0) return "url(" . $url . ")"; //The URL isn't an HTTP URL but is actual binary data. Don't proxify it.
+        if (stripos($url, "data:") === 0) return 'url("' . $url . '")'; //The URL isn't an HTTP URL but is actual binary data. Don't proxify it.
         return "url(" . PROXY_PREFIX . rel2abs($url, $baseURL) . ")";
     },
     $css);
@@ -374,7 +374,7 @@ $htmlcode = <<<ENDHTML
         if(!url){
             url=document.getElementById('site').value;
         }
-        window.document.cookie='url=' +url;
+        window.document.cookie='kp_url=' +url;
         location.reload(); 
         return false;
     }
@@ -394,8 +394,8 @@ $url = substr($_SERVER["REQUEST_URI"], strlen($_SERVER["SCRIPT_NAME"]) + 1);
 if(substr($url,0,2)=="//"){
     $url="https:".$url;
 }
-if(substr($url,0,4)!="http" && isset($_COOKIE['url'])){
-    $url=$_COOKIE['url'].$_SERVER["REQUEST_URI"];
+if(substr($url,0,4)!="http" && isset($_COOKIE['kp_url'])){
+    $url=$_COOKIE['kp_url'].$_SERVER["REQUEST_URI"];
 }
 if (empty($url)) die($htmlcode);
 
@@ -406,16 +406,29 @@ if (!preg_match("@^.*://@", $url)) $url = "http://" . $url; //Assume that any su
 
 $response = makeRequest($url);
 $rawResponseHeaders = $response["headers"];
+
 $responseBody = $response["body"];
 $responseInfo = $response["responseInfo"];
 
 //cURL can make multiple requests internally (while following 302 redirects), and reports
-//headers for every request it makes. Only proxy the last set of received response headers,
+//headers for every request it makes. Only proxy the last set of received response headers, <-有时候会在302设置cookie，蛇皮啊
 //corresponding to the final request made by cURL for any given call to makeRequest().
 $responseHeaderBlocks = array_filter(explode("\r\n\r\n", $rawResponseHeaders));
+foreach ($responseHeaderBlocks as $oneHeaderBlock){
+    $headerLines = explode("\r\n", $oneHeaderBlock);
+    foreach ($headerLines as $header) {
+      if (stripos($header, "Set-Cookie")===0) {
+          //傻逼php不能设置多个相同header项
+        $cookiename=trim(explode("=",explode(";",explode(":",$header)[1])[0])[0]);
+        $cookiecontent=trim(explode("=",explode(";",explode(":",$header)[1])[0])[1]);
+        setcookie($cookiename,$cookiecontent);
+      }
+    }
+}
 $lastHeaderBlock = end($responseHeaderBlocks);
 $headerLines = explode("\r\n", $lastHeaderBlock);
 foreach ($headerLines as $header) {
+   
   if (stripos($header, "Content-Length") === false && stripos($header, "Transfer-Encoding") === false) {
     header($header);
   }
@@ -463,6 +476,10 @@ if (stripos($contentType, "text/html") !== false) {
   $proxifyAttributes = array("href", "src");
   foreach($proxifyAttributes as $attrName) {
     foreach($xpath->query('//*[@' . $attrName . ']') as $element) { //For every element with the given attribute...
+      //ehentai h@h地址不处理
+      if($element->getAttribute('id')=="sm"){
+          continue;
+      }
       $attrContent = $element->getAttribute($attrName);
       if ($attrName == "href" && (stripos($attrContent, "javascript:") === 0 || stripos($attrContent, "mailto:") === 0)) continue;
       $attrContent = rel2abs($attrContent, $url);
@@ -564,6 +581,12 @@ if (stripos($contentType, "text/html") !== false) {
   }
 
   echo "<!-- Proxified page constructed by https://nrird.xyz/proxy -->\n" . $doc->saveHTML();
+  if(strpos($_SERVER['HTTP_USER_AGENT'],'Kindle')){
+  echo "<style>img#sm{width:100%}</style>";
+  }
+  if(!isset($_COOKIE['kp_hide_menu'])){
+  echo '<div id="kp_menu">Powered By <a href="https://github.com/Archeb/kproxyweb">KProxyWeb</a>&nbsp;|&nbsp;<a href="/clean.php?hidemenu">隐藏工具条</a>&nbsp;|&nbsp;<a href="/clean.php">退出代理</a></div><style>#kp_menu{font-size:14px;position:fixed;right:0;bottom:0;opacity:0.7;background-color:#333;padding:5px 10px;color:#fafafa;} #kp_menu a{color:#fafafa;text-decoration:none;}</style>';
+  }
 } else if (stripos($contentType, "text/css") !== false) { //This is CSS, so proxify url() references.
   echo proxifyCSS($responseBody, $url);
 } else { //This isn't a web page or CSS, so serve unmodified through the proxy with the correct headers (images, JavaScript, etc.)
