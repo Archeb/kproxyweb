@@ -585,7 +585,7 @@ if (stripos($contentType, "text/html") !== false) {
   echo "<style>img#sm{width:100%}</style>";
   }
   if(!isset($_COOKIE['kp_hide_menu'])){
-  echo '<div id="kp_menu">Powered By <a href="https://github.com/Archeb/kproxyweb">KProxyWeb</a>&nbsp;|&nbsp;<a href="/clean.php?hidemenu">隐藏工具条</a>&nbsp;|&nbsp;<a href="/clean.php">退出代理</a></div><style>#kp_menu{font-size:14px;position:fixed;right:0;bottom:0;opacity:0.7;background-color:#333;padding:5px 10px;color:#fafafa;} #kp_menu a{color:#fafafa;text-decoration:none;}</style>';
+  echo '<div id="kp_menu">Powered By <a href="https://github.com/Archeb/kproxyweb">KProxyWeb</a>&nbsp;|&nbsp;<a href="/clean.php?hidemenu">隐藏工具条</a>&nbsp;|&nbsp;<a href="/clean.php">退出代理</a></div><style>#kp_menu{font-size:14px;position:fixed;right:0;bottom:0;opacity:0.7;background-color:#333;padding:5px 10px;color:#fafafa;z-index:999;} #kp_menu a{color:#fafafa;text-decoration:none;}</style>';
   }
 } else if (stripos($contentType, "text/css") !== false) { //This is CSS, so proxify url() references.
   echo proxifyCSS($responseBody, $url);
