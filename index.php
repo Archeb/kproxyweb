@@ -484,6 +484,8 @@ if (stripos($contentType, "text/html") !== false) {
       if ($attrName == "href" && (stripos($attrContent, "javascript:") === 0 || stripos($attrContent, "mailto:") === 0)) continue;
       $attrContent = rel2abs($attrContent, $url);
       $attrContent = PROXY_PREFIX . $attrContent;
+      
+      $element->setAttribute("original_".$attrName, $element->getAttribute($attrName));
       $element->setAttribute($attrName, $attrContent);
     }
   }
@@ -585,7 +587,49 @@ if (stripos($contentType, "text/html") !== false) {
   echo "<style>img#sm{width:100%}</style>";
   }
   if(!isset($_COOKIE['kp_hide_menu'])){
-  echo '<div id="kp_menu">Powered By <a href="https://github.com/Archeb/kproxyweb">KProxyWeb</a>&nbsp;|&nbsp;<a href="/clean.php?hidemenu">隐藏工具条</a>&nbsp;|&nbsp;<a href="/clean.php">退出代理</a></div><style>#kp_menu{font-size:14px;position:fixed;right:0;bottom:0;opacity:0.7;background-color:#333;padding:5px 10px;color:#fafafa;z-index:999;} #kp_menu a{color:#fafafa;text-decoration:none;}</style>';
+      ?>
+      <div id="kp_menu">
+          Powered By <a href="https://github.com/Archeb/kproxyweb">KProxyWeb</a>&nbsp;|&nbsp;<a href="/clean.php?hidemenu">隐藏工具条</a>&nbsp;|&nbsp;<a id="kp_swm" onclick="kp_switchproxymode()">新标签使用代理打开 [√]</a>&nbsp;|&nbsp;<a href="/clean.php">退出代理</a>
+    </div>
+      <style>
+          #kp_menu {
+            font-size:14px;
+            position:fixed;
+            right:0;
+            bottom:0;
+            opacity:0.7;
+            background-color:#333;
+            padding:5px 10px;
+            color:#fafafa;
+            z-index:999;
+        }
+        #kp_menu a {
+            color:#fafafa;
+            cursor:pointer;
+            text-decoration:none;
+        }
+      </style>
+      <script>
+          function kp_switchproxymode(){
+              var kp_swm=document.getElementById('kp_swm');
+              if(kp_swm.innerHTML=="新标签使用代理打开 [√]"){
+                  kp_swm.innerHTML="新标签使用代理打开 [×]";
+                  document.querySelectorAll('a[href]').forEach(e=>{
+                      var temp=e.getAttribute('href');
+                      e.setAttribute('href',e.getAttribute('original_href'));
+                      e.setAttribute('original_href',temp);
+                  });
+              }else{
+                  kp_swm.innerHTML="新标签使用代理打开 [√]";
+                  document.querySelectorAll('a[href]').forEach(e=>{
+                      var temp=e.getAttribute('href');
+                      e.setAttribute('href',e.getAttribute('original_href'));
+                      e.setAttribute('original_href',temp);
+                  });
+              }
+          }
+      </script>
+  <?php
   }
 } else if (stripos($contentType, "text/css") !== false) { //This is CSS, so proxify url() references.
   echo proxifyCSS($responseBody, $url);
