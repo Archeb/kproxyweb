@@ -443,7 +443,7 @@ header("content-encoding: ");
 if (stripos($contentType, "text/html") !== false) {
     
     if(preg_match_all('/charset=(.+?)"/i',$responseBody,$cmatch)){
-        header("content-type: text/html;charset=".$cmatch[1]);
+        header("content-type: text/html;charset=".$cmatch[1][0]);
         $page_charset=$cmatch[1][0];
     }else{
         $page_charset='gbk';
