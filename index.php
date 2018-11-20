@@ -25,14 +25,14 @@ if (!function_exists("getallheaders")) {
 }
 
 define("PROXY_PREFIX", "http" . (isset($_SERVER['HTTPS']) ? "s" : "") . "://" . $_SERVER["SERVER_NAME"] . ($_SERVER["SERVER_PORT"] != 80 ? ":" . $_SERVER["SERVER_PORT"] : "") . $_SERVER["SCRIPT_NAME"] . "/");
-
+$page_charset="";
 //Makes an HTTP request via cURL, using request data that was passed directly to this script.
 function makeRequest($url) {
 
   //Tell cURL to make the request using the brower's user-agent if there is one, or a fallback user-agent otherwise.
   $user_agent = $_SERVER["HTTP_USER_AGENT"];
   if (empty($user_agent)) {
-    $user_agent = "Mozilla/5.0 (compatible; nrird.xyz/proxy)";
+    $user_agent = "Mozilla/5.0 (compatible; KProxyWeb/1.0)";
   }
   $ch = curl_init();
   curl_setopt($ch, CURLOPT_USERAGENT, $user_agent);
@@ -435,15 +435,18 @@ foreach ($headerLines as $header) {
 }
 
 $contentType = "";
+
 if (isset($responseInfo["content_type"])) $contentType = $responseInfo["content_type"];
 //删除content encoding
 header("content-encoding: ");
 //This is presumably a web page, so attempt to proxify the DOM.
 if (stripos($contentType, "text/html") !== false) {
     
-    if(strpos($responseBody,'charset=gbk')){
-        header("content-type: text/html;charset=gbk");
+    if(preg_match_all('/charset=(.+?)"/i',$responseBody,$cmatch)){
+        header("content-type: text/html;charset=".$cmatch[1]);
+        $page_charset=$cmatch[1][0];
     }else{
+        $page_charset='gbk';
         $responseBody = mb_convert_encoding($responseBody, "HTML-ENTITIES", mb_detect_encoding($responseBody));
     }
   //Attempt to normalize character encoding.
@@ -514,7 +517,62 @@ if (stripos($contentType, "text/html") !== false) {
 
     $scriptElem = $doc->createElement("script",
       '(function() {
+        if (window.fetch){
+            function parseURI(url) {
+            var m = String(url).replace(/^\s+|\s+$/g, "").match(/^([^:\/?#]+:)?(\/\/(?:[^:@]*(?::[^:@]*)?@)?(([^:\/?#]*)(?::(\d*))?))?([^?#]*)(\?[^#]*)?(#[\s\S]*)?/);
+            // authority = "//" + user + ":" + pass "@" + hostname + ":" port
+            return (m ? {
+              href : m[0] || "",
+              protocol : m[1] || "",
+              authority: m[2] || "",
+              host : m[3] || "",
+              hostname : m[4] || "",
+              port : m[5] || "",
+              pathname : m[6] || "",
+              search : m[7] || "",
+              hash : m[8] || ""
+            } : null);
+          }
 
+          function rel2abs(base, href) { // RFC 3986
+
+            function removeDotSegments(input) {
+              var output = [];
+              input.replace(/^(\.\.?(\/|$))+/, "")
+                .replace(/\/(\.(\/|$))+/g, "/")
+                .replace(/\/\.\.$/, "/../")
+                .replace(/\/?[^\/]*/g, function (p) {
+                  if (p === "/..") {
+                    output.pop();
+                  } else {
+                    output.push(p);
+                  }
+                });
+              return output.join("").replace(/^\//, input.charAt(0) === "/" ? "/" : "");
+            }
+
+            href = parseURI(href || "");
+            base = parseURI(base || "");
+
+            return !href || !base ? null : (href.protocol || base.protocol) +
+            (href.protocol || href.authority ? href.authority : base.authority) +
+            removeDotSegments(href.protocol || href.authority || href.pathname.charAt(0) === "/" ? href.pathname : (href.pathname ? ((base.authority && !base.pathname ? "/" : "") + base.pathname.slice(0, base.pathname.lastIndexOf("/") + 1) + href.pathname) : base.pathname)) +
+            (href.protocol || href.authority || href.pathname ? href.search : (href.search || base.search)) +
+            href.hash;
+
+          }
+
+          var proxiedfetch = window.fetch;
+          window.fetch = function() {
+              if (arguments[0] !== null && arguments[0] !== undefined) {
+                var url = arguments[0];
+                url = rel2abs("' . $url . '", url);
+                url = "' . PROXY_PREFIX . '" + url;
+                arguments[0] = url;
+              }
+              return proxiedfetch.apply(this, [].slice.call(arguments));
+          };
+        }
         if (window.XMLHttpRequest) {
 
           function parseURI(url) {
@@ -582,12 +640,12 @@ if (stripos($contentType, "text/html") !== false) {
 
   }
 
-  echo "<!-- Proxified page constructed by https://nrird.xyz/proxy -->\n" . $doc->saveHTML();
+  echo "<!-- Proxified page constructed by KProxyWeb -->\n" . $doc->saveHTML();
   if(strpos($_SERVER['HTTP_USER_AGENT'],'Kindle')){
   echo "<style>img#sm{width:100%}</style>";
   }
   if(!isset($_COOKIE['kp_hide_menu'])){
-      ?>
+$menuhtml= <<<ENDHTML
       <div id="kp_menu">
           Powered By <a href="https://github.com/Archeb/kproxyweb">KProxyWeb</a>&nbsp;|&nbsp;<a href="/clean.php?hidemenu">隐藏工具条</a>&nbsp;|&nbsp;<a id="kp_swm" onclick="kp_switchproxymode()">新标签使用代理打开 [√]</a>&nbsp;|&nbsp;<a href="/clean.php">退出代理</a>
     </div>
@@ -629,7 +687,8 @@ if (stripos($contentType, "text/html") !== false) {
               }
           }
       </script>
-  <?php
+ENDHTML;
+echo mb_convert_encoding($menuhtml,$page_charset,'utf-8');
   }
 } else if (stripos($contentType, "text/css") !== false) { //This is CSS, so proxify url() references.
   echo proxifyCSS($responseBody, $url);
