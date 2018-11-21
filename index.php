@@ -442,11 +442,12 @@ header("content-encoding: ");
 //This is presumably a web page, so attempt to proxify the DOM.
 if (stripos($contentType, "text/html") !== false) {
     
-    if(preg_match_all('/charset=(.+?)"/i',$responseBody,$cmatch)){
-        header("content-type: text/html;charset=".$cmatch[1][0]);
-        $page_charset=$cmatch[1][0];
+    
+     if(strpos($responseBody,'charset=gbk')){
+        header("content-type: text/html;charset=gbk");
+        
     }else{
-        $page_charset='gbk';
+        
         $responseBody = mb_convert_encoding($responseBody, "HTML-ENTITIES", mb_detect_encoding($responseBody));
     }
   //Attempt to normalize character encoding.
